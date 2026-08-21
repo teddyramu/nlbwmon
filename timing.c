@@ -12,8 +12,8 @@
   AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
   INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
   LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
-  OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
-  PERFORMANCE OF THIS SOFTWARE.
+  OR OTHER TORTIOUS ACTION, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 
 #include <stdio.h>
@@ -39,6 +39,7 @@ is_leapyear(int year)
 
 	return 0;
 }
+
 
 static int
 days_in_month(int year, int month)
@@ -66,6 +67,7 @@ days_in_month(int year, int month)
 	return -ERANGE;
 }
 
+
 static void
 tm_inc_dec(struct tm *tm, bool inc)
 {
@@ -88,6 +90,7 @@ tm_inc_dec(struct tm *tm, bool inc)
 		}
 	}
 }
+
 
 static int
 interval_timestamp_monthly(const struct interval *intv, int offset)
@@ -133,6 +136,7 @@ interval_timestamp_monthly(const struct interval *intv, int offset)
 	         date);
 }
 
+
 static int
 interval_timestamp_fixed(const struct interval *intv, int offset)
 {
@@ -144,7 +148,18 @@ interval_timestamp_fixed(const struct interval *intv, int offset)
 	value = (int32_t)be32toh(intv->value);
 
 	now = time(NULL);
-	now -= now % 86400;
+
+	/*
+	 * Normalize to local midnight instead of UTC midnight.
+	 * This makes daily accounting periods follow the router's
+	 * configured timezone, e.g. 00:00 IST for Asia/Kolkata.
+	 */
+	loc = localtime(&now);
+	loc->tm_hour = 0;
+	loc->tm_min = 0;
+	loc->tm_sec = 0;
+	now = mktime(loc);
+
 	now += offset * (value * 86400);
 
 	base = now - ((now - base) % (value * 86400));
@@ -154,6 +169,7 @@ interval_timestamp_fixed(const struct interval *intv, int offset)
 	        (loc->tm_mon  +    1) *   100 +
 	         loc->tm_mday);
 }
+
 
 int
 interval_pton(const char *spec, struct interval *intv)
@@ -183,7 +199,6 @@ interval_pton(const char *spec, struct interval *intv)
 		loc.tm_year = year - 1900;
 
 		base = mktime(&loc);
-		base -= base % 86400;
 
 		intv->type  = FIXED;
 		intv->value = htobe32(value);
@@ -200,9 +215,8 @@ interval_pton(const char *spec, struct interval *intv)
 	intv->type  = MONTHLY;
 	intv->base  = 0;
 	intv->value = htobe32(value);
-
-	return 0;
 }
+
 
 void
 interval_ntop(const struct interval *intv, char *spec, size_t len)
@@ -225,6 +239,7 @@ interval_ntop(const struct interval *intv, char *spec, size_t len)
 		break;
 	}
 }
+
 
 int
 interval_timestamp(const struct interval *intv, int offset)
